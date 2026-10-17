@@ -13,6 +13,9 @@ dist-ssr
 coverage
 *.local
 
+# Local-only project docs
+EFT_Design_Spec.md
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
