@@ -18,7 +18,9 @@ import {
   type SealBoxPackage,
 } from '../lib/crypto'
 import { baseName, downloadBlob, formatBytes } from '../lib/files'
+import { isZipFile, readBundle, type DecryptedBundle } from '../lib/bundle'
 import { describeError, type ErrorCopy } from '../lib/errorCopy'
+import { recordEvent } from '../lib/analytics'
 
 type Phase = 'idle' | 'reading' | 'decrypting' | 'success' | 'error'
 
@@ -26,6 +28,8 @@ interface DecryptedResult {
   fileName: string
   fileType: string
   blob: Blob
+  bundle: DecryptedBundle | null
+  metadata: 'visible' | 'hidden'
 }
 
 export function DecryptPage() {
@@ -113,12 +117,22 @@ export function DecryptPage() {
       setPhase('decrypting')
       const privateKey = await resolvePrivateKey()
       const decrypted = await decryptPackage(pkg, privateKey)
+      const fileName = baseName(decrypted.fileName)
+      const bundle = isZipFile(fileName, decrypted.fileType)
+        ? readBundle(decrypted.bytes)
+        : null
       setResult({
-        fileName: baseName(decrypted.fileName),
+        fileName,
         fileType: decrypted.fileType,
         blob: new Blob([decrypted.bytes as BlobPart], {
           type: decrypted.fileType || 'application/octet-stream',
         }),
+        bundle,
+        metadata: decrypted.metadata,
+      })
+      recordEvent(bundle ? 'bundle-decrypt' : 'decrypt', {
+        bytes: bundle ? bundle.totalSize : decrypted.bytes.byteLength,
+        files: bundle ? bundle.entries.length : 1,
       })
       setPhase('success')
     } catch (err) {
@@ -167,7 +181,10 @@ export function DecryptPage() {
                       {pkgName}
                     </p>
                     <p className="sb-file-summary__sub">
-                      {pkg.cipher} · created {new Date(pkg.createdAt).toLocaleString()}
+                      {pkg.cipher} ·{' '}
+                      {pkg.metadata === 'hidden'
+                        ? 'metadata encrypted'
+                        : `created ${new Date(pkg.createdAt).toLocaleString()}`}
                     </p>
                   </div>
                   <Button
@@ -180,16 +197,25 @@ export function DecryptPage() {
                     Remove
                   </Button>
                 </div>
-                <dl className="sb-details">
-                  <dt>Original name</dt>
-                  <dd>{pkg.fileName || 'Unknown'}</dd>
-                  <dt>Original size</dt>
-                  <dd>{formatBytes(pkg.fileSize)}</dd>
-                </dl>
-                <p className="sb-text-xs sb-muted">
-                  The file name and size above are visible metadata stored in the package. File
-                  contents remain encrypted until you decrypt.
-                </p>
+                {pkg.metadata === 'hidden' ? (
+                  <p className="sb-text-xs sb-muted">
+                    This package hides its original file details. The name, type, and size are
+                    encrypted inside and will be revealed after decryption.
+                  </p>
+                ) : (
+                  <>
+                    <dl className="sb-details">
+                      <dt>Original name</dt>
+                      <dd>{pkg.fileName || 'Unknown'}</dd>
+                      <dt>Original size</dt>
+                      <dd>{formatBytes(pkg.fileSize)}</dd>
+                    </dl>
+                    <p className="sb-text-xs sb-muted">
+                      The file name and size above are visible metadata stored in the package. File
+                      contents remain encrypted until you decrypt.
+                    </p>
+                  </>
+                )}
               </div>
             ) : (
               <FileDropZone
@@ -333,19 +359,88 @@ export function DecryptPage() {
 
             {result ? (
               <div style={{ marginBottom: 'var(--space-4)' }}>
-                <StatusMessage variant="success" title="Decryption completed">
-                  The original file was recovered and verified.
+                <StatusMessage
+                  variant="success"
+                  title={result.bundle ? 'Bundle decrypted' : 'Decryption completed'}
+                >
+                  {result.bundle
+                    ? `${result.bundle.entries.length} ${
+                        result.bundle.entries.length === 1 ? 'file was' : 'files were'
+                      } recovered and verified.`
+                    : 'The original file was recovered and verified.'}
                 </StatusMessage>
                 <Card compact muted style={{ marginTop: 'var(--space-4)' }}>
-                  <dl className="sb-details">
-                    <dt>File name</dt>
-                    <dd>{result.fileName}</dd>
-                    <dt>Type</dt>
-                    <dd>{result.fileType || 'Unknown'}</dd>
-                    <dt>Size</dt>
-                    <dd>{formatBytes(result.blob.size)}</dd>
-                  </dl>
+                  {result.bundle ? (
+                    <dl className="sb-details">
+                      <dt>Bundle</dt>
+                      <dd>{result.fileName}</dd>
+                      <dt>Files</dt>
+                      <dd>{result.bundle.entries.length}</dd>
+                      <dt>Total size</dt>
+                      <dd>{formatBytes(result.bundle.totalSize)}</dd>
+                    </dl>
+                  ) : (
+                    <dl className="sb-details">
+                      <dt>File name</dt>
+                      <dd>{result.fileName}</dd>
+                      <dt>Type</dt>
+                      <dd>{result.fileType || 'Unknown'}</dd>
+                      <dt>Size</dt>
+                      <dd>{formatBytes(result.blob.size)}</dd>
+                    </dl>
+                  )}
                 </Card>
+                {result.metadata === 'hidden' ? (
+                  <p className="sb-text-xs sb-muted" style={{ marginTop: 'var(--space-3)' }}>
+                    File details were encrypted inside the package and recovered after decryption.
+                  </p>
+                ) : null}
+
+                {result.bundle ? (
+                  <div style={{ marginTop: 'var(--space-4)' }}>
+                    <p className="sb-text-xs sb-muted">
+                      Download individual files below, or get the whole bundle as a ZIP.
+                    </p>
+                    <ul
+                      className="sb-batch-list sb-batch-list--scroll"
+                      role="list"
+                      style={{ marginTop: 'var(--space-2)' }}
+                    >
+                      {result.bundle.entries.map((entry) => (
+                        <li className="sb-batch-item" key={entry.name}>
+                          <span className="sb-batch-item__icon" aria-hidden="true">
+                            <FileText size={16} strokeWidth={1.9} />
+                          </span>
+                          <div className="sb-batch-item__meta">
+                            <p className="sb-batch-item__name" title={entry.name}>
+                              {entry.name}
+                            </p>
+                            <p className="sb-batch-item__sub">
+                              {formatBytes(entry.bytes.byteLength)}
+                            </p>
+                          </div>
+                          <Button
+                            variant="tertiary"
+                            size="sm"
+                            className="sb-btn--icon"
+                            aria-label={`Download ${entry.name}`}
+                            title={`Download ${entry.name}`}
+                            onClick={() =>
+                              downloadBlob(
+                                new Blob([entry.bytes as BlobPart], {
+                                  type: 'application/octet-stream',
+                                }),
+                                baseName(entry.name),
+                              )
+                            }
+                          >
+                            <Download size={16} aria-hidden="true" />
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
               </div>
             ) : null}
 
@@ -368,7 +463,7 @@ export function DecryptPage() {
                   onClick={() => downloadBlob(result.blob, result.fileName)}
                   icon={<Download size={18} aria-hidden="true" />}
                 >
-                  Download file
+                  {result.bundle ? 'Download all (.zip)' : 'Download file'}
                 </Button>
               ) : null}
 

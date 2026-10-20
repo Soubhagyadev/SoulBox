@@ -28,7 +28,7 @@ const FACTS = [
   },
   {
     icon: Info,
-    text: 'The package contains visible metadata such as the original file name, size, and the recipient key fingerprint. File contents stay encrypted.',
+    text: 'By default the package keeps the file name, size, and recipient key fingerprint as visible metadata. Hide metadata encrypts those details inside the package.',
   },
   {
     icon: Share2,

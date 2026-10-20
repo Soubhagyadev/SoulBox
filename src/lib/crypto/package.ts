@@ -1,11 +1,12 @@
 import { SealBoxCryptoError } from './errors'
-import { base64ToBytes, bytesToBase64, bytesToString } from './encoding'
+import { base64ToBytes, bytesToBase64, bytesToString, stringToBytes } from './encoding'
 import { getKeyFingerprint } from './keys'
 
 export const PACKAGE_FORMAT = 'SEALBOX-PACKAGE'
-export const PACKAGE_VERSION = 1
+export const PACKAGE_VERSION = 2
 export const PACKAGE_EXTENSION = '.sealbox'
 export const PACKAGE_MIME = 'application/x-sb-package'
+export const HIDDEN_PACKAGE_FILE_NAME = 'sealbox-package.sealbox'
 
 export const AES_ALGORITHM_LABEL = 'AES-256-GCM'
 export const KEY_WRAP_ALGORITHM_LABEL = 'RSA-OAEP-SHA256'
@@ -15,38 +16,68 @@ export const AES_IV_LENGTH = 12
 /** Whole-file AES-GCM means the file must fit in memory. */
 export const MAX_FILE_SIZE = 100 * 1024 * 1024
 
-/**
- * Serialised encrypted package. `data`, `iv`, and `encryptedKey` are
- * ciphertext or cryptographic material. `fileName`, `fileType`, `fileSize`,
- * `recipientFingerprint`, and `createdAt` are visible metadata — the UI must
- * disclose this (see EFT_Design_Spec.md §11).
- */
-export interface SealBoxPackage {
+export type PackageMetadataMode = 'visible' | 'hidden'
+
+interface SealBoxPackageBase {
   format: typeof PACKAGE_FORMAT
   version: number
-  createdAt: string
   cipher: string
   keyWrap: string
-  recipientFingerprint: string
-  fileName: string
-  fileType: string
-  fileSize: number
   encryptedKey: string
   iv: string
   data: string
 }
+
+/**
+ * Packages with visible metadata expose the original name, type, size,
+ * creation time, and recipient fingerprint. Version 1 packages always used
+ * this mode; version 2 can opt into hidden metadata.
+ */
+export interface VisibleSealBoxPackage extends SealBoxPackageBase {
+  version: 1 | 2
+  metadata?: 'visible'
+  createdAt: string
+  recipientFingerprint: string
+  fileName: string
+  fileType: string
+  fileSize: number
+}
+
+/**
+ * Hidden-metadata packages encrypt the original name, type, size, creation
+ * time, and recipient fingerprint with a second AES-GCM ciphertext.
+ */
+export interface HiddenSealBoxPackage extends SealBoxPackageBase {
+  version: 2
+  metadata: 'hidden'
+  encryptedMetadata: string
+  metadataIv: string
+}
+
+export type SealBoxPackage = VisibleSealBoxPackage | HiddenSealBoxPackage
 
 export interface EncryptFileInput {
   data: Uint8Array
   fileName: string
   fileType?: string
   recipientPublicKey: CryptoKey
+  /** Encrypt the original file details and recipient fingerprint inside the package. */
+  hideMetadata?: boolean
 }
 
 export interface DecryptedFile {
   bytes: Uint8Array
   fileName: string
   fileType: string
+  metadata: PackageMetadataMode
+}
+
+interface HiddenMetadata {
+  fileName: string
+  fileType: string
+  fileSize: number
+  createdAt: string
+  recipientFingerprint: string
 }
 
 function getCrypto(): Crypto {
@@ -59,13 +90,56 @@ function getCrypto(): Crypto {
   return globalThis.crypto
 }
 
+function invalidHiddenMetadata(): never {
+  throw new SealBoxCryptoError(
+    'INVALID_PACKAGE',
+    'The hidden metadata in this package is missing or malformed.',
+  )
+}
+
+function parseHiddenMetadata(bytes: Uint8Array): HiddenMetadata {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(bytesToString(bytes))
+  } catch {
+    invalidHiddenMetadata()
+  }
+  if (typeof parsed !== 'object' || parsed === null) invalidHiddenMetadata()
+
+  const candidate = parsed as Record<string, unknown>
+  if (
+    typeof candidate.fileName !== 'string' ||
+    typeof candidate.fileType !== 'string' ||
+    typeof candidate.fileSize !== 'number' ||
+    !Number.isFinite(candidate.fileSize) ||
+    candidate.fileSize < 0 ||
+    typeof candidate.createdAt !== 'string' ||
+    Number.isNaN(Date.parse(candidate.createdAt)) ||
+    typeof candidate.recipientFingerprint !== 'string'
+  ) {
+    invalidHiddenMetadata()
+  }
+
+  return {
+    fileName: candidate.fileName,
+    fileType: candidate.fileType,
+    fileSize: candidate.fileSize,
+    createdAt: candidate.createdAt,
+    recipientFingerprint: candidate.recipientFingerprint,
+  }
+}
+
 /**
  * Hybrid encryption: a one-time AES-256-GCM key encrypts the file contents,
  * and the recipient's RSA public key wraps that AES key. The plaintext never
  * leaves this function.
+ *
+ * With `hideMetadata`, a second AES-GCM ciphertext carries the original file
+ * details, creation time, and recipient fingerprint. Only the package's
+ * approximate size remains inferable from the ciphertext length.
  */
 export async function encryptFile(input: EncryptFileInput): Promise<SealBoxPackage> {
-  const { data, fileName, fileType = '', recipientPublicKey } = input
+  const { data, fileName, fileType = '', recipientPublicKey, hideMetadata = false } = input
   const { subtle } = getCrypto()
 
   if (data.byteLength === 0) {
@@ -79,6 +153,7 @@ export async function encryptFile(input: EncryptFileInput): Promise<SealBoxPacka
   }
 
   const { fingerprint } = await getKeyFingerprint(recipientPublicKey)
+  const createdAt = new Date().toISOString()
 
   const aesKey = await subtle.generateKey(
     { name: 'AES-GCM', length: AES_KEY_LENGTH },
@@ -106,19 +181,56 @@ export async function encryptFile(input: EncryptFileInput): Promise<SealBoxPacka
     )
   }
 
-  return {
+  const base: SealBoxPackageBase = {
     format: PACKAGE_FORMAT,
     version: PACKAGE_VERSION,
-    createdAt: new Date().toISOString(),
     cipher: AES_ALGORITHM_LABEL,
     keyWrap: KEY_WRAP_ALGORITHM_LABEL,
-    recipientFingerprint: fingerprint,
-    fileName,
-    fileType,
-    fileSize: data.byteLength,
     encryptedKey: bytesToBase64(new Uint8Array(wrappedKey)),
     iv: bytesToBase64(iv),
     data: bytesToBase64(new Uint8Array(ciphertext)),
+  }
+
+  if (!hideMetadata) {
+    return {
+      ...base,
+      version: 2,
+      metadata: 'visible',
+      createdAt,
+      recipientFingerprint: fingerprint,
+      fileName,
+      fileType,
+      fileSize: data.byteLength,
+    }
+  }
+
+  const hiddenMetadata: HiddenMetadata = {
+    fileName,
+    fileType,
+    fileSize: data.byteLength,
+    createdAt,
+    recipientFingerprint: fingerprint,
+  }
+  const metadataIv = getCrypto().getRandomValues(new Uint8Array(AES_IV_LENGTH))
+  let encryptedMetadata: ArrayBuffer
+  try {
+    encryptedMetadata = await subtle.encrypt(
+      { name: 'AES-GCM', iv: metadataIv },
+      aesKey,
+      stringToBytes(JSON.stringify(hiddenMetadata)) as BufferSource,
+    )
+  } catch (cause) {
+    throw new SealBoxCryptoError('UNKNOWN', 'The package metadata could not be encrypted.', {
+      cause,
+    })
+  }
+
+  return {
+    ...base,
+    version: 2,
+    metadata: 'hidden',
+    encryptedMetadata: bytesToBase64(new Uint8Array(encryptedMetadata)),
+    metadataIv: bytesToBase64(metadataIv),
   }
 }
 
@@ -156,6 +268,25 @@ export async function decryptPackage(
     })
   }
 
+  let hiddenMetadata: HiddenMetadata | null = null
+  if (pkg.metadata === 'hidden') {
+    let metadataPlaintext: ArrayBuffer
+    try {
+      metadataPlaintext = await subtle.decrypt(
+        { name: 'AES-GCM', iv: base64ToBytes(pkg.metadataIv) },
+        aesKey,
+        base64ToBytes(pkg.encryptedMetadata) as BufferSource,
+      )
+    } catch (cause) {
+      throw new SealBoxCryptoError(
+        'AUTHENTICATION_FAILED',
+        'The package metadata could not be verified or decrypted. The package may be corrupted or altered.',
+        { cause },
+      )
+    }
+    hiddenMetadata = parseHiddenMetadata(new Uint8Array(metadataPlaintext))
+  }
+
   let plaintext: ArrayBuffer
   try {
     plaintext = await subtle.decrypt({ name: 'AES-GCM', iv }, aesKey, ciphertext as BufferSource)
@@ -167,10 +298,28 @@ export async function decryptPackage(
     )
   }
 
+  if (hiddenMetadata && hiddenMetadata.fileSize !== plaintext.byteLength) {
+    throw new SealBoxCryptoError(
+      'INVALID_PACKAGE',
+      'The package metadata does not match the encrypted file contents.',
+    )
+  }
+
+  let fileName = ''
+  let fileType = ''
+  if (hiddenMetadata) {
+    fileName = hiddenMetadata.fileName
+    fileType = hiddenMetadata.fileType
+  } else if (pkg.metadata !== 'hidden') {
+    fileName = pkg.fileName
+    fileType = pkg.fileType
+  }
+
   return {
     bytes: new Uint8Array(plaintext),
-    fileName: pkg.fileName || 'decrypted-file',
-    fileType: pkg.fileType,
+    fileName: fileName || 'decrypted-file',
+    fileType,
+    metadata: hiddenMetadata ? 'hidden' : 'visible',
   }
 }
 
@@ -188,18 +337,50 @@ export function packageFileName(originalName: string): string {
   return `${base}${PACKAGE_EXTENSION}`
 }
 
-export function isSealBoxPackage(value: unknown): value is SealBoxPackage {
-  if (typeof value !== 'object' || value === null) return false
-  const candidate = value as Record<string, unknown>
+function isPackageBase(candidate: Record<string, unknown>): boolean {
   return (
     candidate.format === PACKAGE_FORMAT &&
     typeof candidate.version === 'number' &&
+    Number.isInteger(candidate.version) &&
+    candidate.version >= 1 &&
+    typeof candidate.cipher === 'string' &&
+    typeof candidate.keyWrap === 'string' &&
     typeof candidate.encryptedKey === 'string' &&
     typeof candidate.iv === 'string' &&
-    typeof candidate.data === 'string' &&
-    typeof candidate.fileName === 'string' &&
-    typeof candidate.fileSize === 'number'
+    typeof candidate.data === 'string'
   )
+}
+
+function hasVisibleMetadata(candidate: Record<string, unknown>): boolean {
+  return (
+    typeof candidate.createdAt === 'string' &&
+    !Number.isNaN(Date.parse(candidate.createdAt)) &&
+    typeof candidate.recipientFingerprint === 'string' &&
+    typeof candidate.fileName === 'string' &&
+    typeof candidate.fileType === 'string' &&
+    typeof candidate.fileSize === 'number' &&
+    Number.isFinite(candidate.fileSize) &&
+    candidate.fileSize >= 0
+  )
+}
+
+export function isSealBoxPackage(value: unknown): value is SealBoxPackage {
+  if (typeof value !== 'object' || value === null) return false
+  const candidate = value as Record<string, unknown>
+  if (!isPackageBase(candidate)) return false
+  if (candidate.version === 1) {
+    return candidate.metadata === undefined && hasVisibleMetadata(candidate)
+  }
+  if (candidate.version === PACKAGE_VERSION) {
+    if (candidate.metadata === 'hidden') {
+      return (
+        typeof candidate.encryptedMetadata === 'string' &&
+        typeof candidate.metadataIv === 'string'
+      )
+    }
+    if (candidate.metadata === 'visible') return hasVisibleMetadata(candidate)
+  }
+  return false
 }
 
 export function parsePackage(text: string): SealBoxPackage {
@@ -224,17 +405,20 @@ export function parsePackage(text: string): SealBoxPackage {
     }
   }
 
+  if (typeof parsed === 'object' && parsed !== null && 'version' in parsed) {
+    const version = (parsed as { version: unknown }).version
+    if (typeof version === 'number' && version > PACKAGE_VERSION) {
+      throw new SealBoxCryptoError(
+        'UNSUPPORTED_FORMAT',
+        'This package was created by a newer version of SealBox and is not supported here.',
+      )
+    }
+  }
+
   if (!isSealBoxPackage(parsed)) {
     throw new SealBoxCryptoError(
       'INVALID_PACKAGE',
       'This package is missing required fields and cannot be decrypted.',
-    )
-  }
-
-  if (parsed.version > PACKAGE_VERSION) {
-    throw new SealBoxCryptoError(
-      'UNSUPPORTED_FORMAT',
-      'This package was created by a newer version of SealBox and is not supported here.',
     )
   }
 

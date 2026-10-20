@@ -34,6 +34,7 @@ describe('package encryption', () => {
     expect(new TextDecoder().decode(decrypted.bytes)).toBe(content)
     expect(decrypted.fileName).toBe('note.txt')
     expect(decrypted.fileType).toBe('text/plain')
+    expect(decrypted.metadata).toBe('visible')
   })
 
   it('round-trips binary data including zero bytes', async () => {
@@ -61,6 +62,55 @@ describe('package encryption', () => {
     expect(serialized).toContain('secret.txt')
   })
 
+  it('hides file details and the recipient fingerprint when requested', async () => {
+    const recipient = await makeRecipient()
+    const pkg = await encryptFile({
+      data: stringToBytes('hidden secret'),
+      fileName: 'private-notes.txt',
+      fileType: 'text/plain',
+      recipientPublicKey: recipient.publicKey,
+      hideMetadata: true,
+    })
+
+    expect(pkg.metadata).toBe('hidden')
+    expect(pkg.version).toBe(PACKAGE_VERSION)
+
+    const stored = JSON.parse(serializePackage(pkg)) as Record<string, unknown>
+    expect(stored).not.toHaveProperty('fileName')
+    expect(stored).not.toHaveProperty('fileType')
+    expect(stored).not.toHaveProperty('fileSize')
+    expect(stored).not.toHaveProperty('createdAt')
+    expect(stored).not.toHaveProperty('recipientFingerprint')
+    expect(serializePackage(pkg)).not.toContain('private-notes.txt')
+
+    const decrypted = await decryptPackage(pkg, recipient.privateKey)
+    expect(new TextDecoder().decode(decrypted.bytes)).toBe('hidden secret')
+    expect(decrypted.fileName).toBe('private-notes.txt')
+    expect(decrypted.fileType).toBe('text/plain')
+    expect(decrypted.metadata).toBe('hidden')
+  })
+
+  it('fails when hidden metadata is altered', async () => {
+    const recipient = await makeRecipient()
+    const pkg = await encryptFile({
+      data: stringToBytes('hello'),
+      fileName: 'a.txt',
+      recipientPublicKey: recipient.publicKey,
+      hideMetadata: true,
+    })
+    if (pkg.metadata !== 'hidden') throw new Error('expected hidden metadata')
+
+    const bytes = base64ToBytes(pkg.encryptedMetadata)
+    bytes[0] ^= 0xff
+    const tampered: SealBoxPackage = {
+      ...pkg,
+      encryptedMetadata: bytesToBase64(bytes),
+    }
+    await expect(decryptPackage(tampered, recipient.privateKey)).rejects.toSatisfy(
+      (error: unknown) => isSealBoxCryptoError(error) && error.code === 'AUTHENTICATION_FAILED',
+    )
+  })
+
   it('records the recipient fingerprint as visible metadata', async () => {
     const recipient = await makeRecipient()
     const pkg = await encryptFile({
@@ -68,6 +118,7 @@ describe('package encryption', () => {
       fileName: 'a.txt',
       recipientPublicKey: recipient.publicKey,
     })
+    if (pkg.metadata !== 'visible') throw new Error('expected visible metadata')
     expect(pkg.recipientFingerprint).toMatch(/^[0-9A-F]{2}(:[0-9A-F]{2})+$/)
     expect(pkg.format).toBe(PACKAGE_FORMAT)
     expect(pkg.version).toBe(PACKAGE_VERSION)
@@ -147,6 +198,24 @@ describe('package parsing', () => {
       recipientPublicKey: recipient.publicKey,
     })
     expect(parsePackage(serializePackage(pkg))).toEqual(pkg)
+  })
+
+  it('decrypts legacy version 1 packages with visible metadata', async () => {
+    const recipient = await makeRecipient()
+    const pkg = await encryptFile({
+      data: stringToBytes('legacy'),
+      fileName: 'legacy.txt',
+      fileType: 'text/plain',
+      recipientPublicKey: recipient.publicKey,
+    })
+    const legacy = { ...pkg, version: 1 } as Record<string, unknown>
+    delete legacy.metadata
+
+    const parsed = parsePackage(JSON.stringify(legacy))
+    expect(parsed.version).toBe(1)
+    const decrypted = await decryptPackage(parsed, recipient.privateKey)
+    expect(decrypted.fileName).toBe('legacy.txt')
+    expect(decrypted.metadata).toBe('visible')
   })
 
   it('rejects non-JSON input', () => {

@@ -3,9 +3,12 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import { App } from './App'
 import { KeyVaultProvider } from './context/KeyVaultProvider'
+import { initTheme } from './lib/preferences'
 import './styles/global.css'
 import './styles/components.css'
 import './styles/pages.css'
+
+initTheme()
 
 const rootElement = document.getElementById('root')
 if (!rootElement) {

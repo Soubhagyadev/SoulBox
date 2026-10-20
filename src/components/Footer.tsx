@@ -16,8 +16,11 @@ export function Footer() {
           <p className="sb-footer__title">Product</p>
           <div className="sb-footer__links">
             <Link to="/encrypt">Encrypt file</Link>
+            <Link to="/batch">Batch encryption</Link>
             <Link to="/decrypt">Decrypt file</Link>
             <Link to="/keys">Key management</Link>
+            <Link to="/analytics">Analytics</Link>
+            <Link to="/settings">Settings</Link>
           </div>
         </nav>
 

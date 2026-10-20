@@ -1,12 +1,24 @@
 import { useEffect, useRef } from 'react'
 import { Link, NavLink } from 'react-router-dom'
-import { FileKey, FileLock2, KeyRound, Menu, X } from 'lucide-react'
+import {
+  ChartNoAxesColumn,
+  FileKey,
+  FileLock2,
+  FolderLock,
+  KeyRound,
+  Menu,
+  Settings,
+  X,
+} from 'lucide-react'
 import { LogoMark } from './LogoMark'
 
 const NAV_ITEMS = [
   { to: '/encrypt', label: 'Encrypt file', icon: FileLock2 },
+  { to: '/batch', label: 'Batch encryption', icon: FolderLock },
   { to: '/decrypt', label: 'Decrypt file', icon: FileKey },
   { to: '/keys', label: 'Key management', icon: KeyRound },
+  { to: '/analytics', label: 'Analytics', icon: ChartNoAxesColumn },
+  { to: '/settings', label: 'Settings', icon: Settings },
 ]
 
 const FOCUSABLE = 'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'

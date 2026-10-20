@@ -1,24 +1,17 @@
-import { useCallback, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
-import {
-  CheckCircle2,
-  Download,
-  FileText,
-  KeyRound,
-  RefreshCw,
-  ShieldCheck,
-  Trash2,
-} from 'lucide-react'
+import { useCallback, useState } from 'react'
+import { CheckCircle2, Download, FileText, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react'
 import { useKeyVault } from '../context/keyVault'
 import { Button } from '../components/Button'
 import { Card } from '../components/Card'
 import { FileDropZone } from '../components/FileDropZone'
+import { MetadataPrivacyToggle } from '../components/MetadataPrivacyToggle'
 import { ProgressBar } from '../components/ProgressBar'
+import { RecipientKeyPicker, type Recipient } from '../components/RecipientKeyPicker'
 import { StatusMessage } from '../components/StatusMessage'
 import {
   encryptFile,
-  getFingerprintFromPem,
   importPublicKeyPem,
+  HIDDEN_PACKAGE_FILE_NAME,
   MAX_FILE_SIZE,
   packageFileName,
   packageToBlob,
@@ -26,28 +19,20 @@ import {
 } from '../lib/crypto'
 import { downloadBlob, formatBytes, readFileWithProgress } from '../lib/files'
 import { describeError, type ErrorCopy } from '../lib/errorCopy'
+import { recordEvent } from '../lib/analytics'
 
 type Phase = 'idle' | 'reading' | 'encrypting' | 'success' | 'error'
 
-type Recipient =
-  | { source: 'vault'; id: string; name: string; fingerprint: string }
-  | { source: 'file'; name: string; pem: string; fingerprint: string }
-  | null
-
 export function EncryptPage() {
-  const { keys, getPublicCryptoKey } = useKeyVault()
-  const vaultKeys = keys.filter((key) => key.publicKeyPem)
+  const { getPublicCryptoKey } = useKeyVault()
 
   const [file, setFile] = useState<File | null>(null)
   const [recipient, setRecipient] = useState<Recipient>(null)
+  const [hideMetadata, setHideMetadata] = useState(false)
   const [phase, setPhase] = useState<Phase>('idle')
   const [progress, setProgress] = useState<number | undefined>(undefined)
   const [error, setError] = useState<ErrorCopy | null>(null)
   const [result, setResult] = useState<{ pkg: SealBoxPackage; fileName: string } | null>(null)
-  const [keyError, setKeyError] = useState<string | null>(null)
-  const [loadingKey, setLoadingKey] = useState(false)
-
-  const importInputRef = useRef<HTMLInputElement>(null)
 
   const busy = phase === 'reading' || phase === 'encrypting'
 
@@ -67,45 +52,6 @@ export function EncryptPage() {
     setPhase('error')
     setResult(null)
     setError({ title: 'File not accepted', message: reasons.join(' ') })
-  }
-
-  const handleVaultKeyChange = async (id: string) => {
-    setKeyError(null)
-    if (!id) {
-      setRecipient(null)
-      return
-    }
-    const key = vaultKeys.find((candidate) => candidate.id === id)
-    if (!key) return
-    try {
-      setLoadingKey(true)
-      const { fingerprint } = await getFingerprintFromPem(key.publicKeyPem)
-      setRecipient({ source: 'vault', id: key.id, name: key.name, fingerprint })
-      resetOutcome()
-    } catch {
-      setKeyError('That saved key could not be read. Re-import it in Key management.')
-    } finally {
-      setLoadingKey(false)
-    }
-  }
-
-  const handleImportRecipient = async (files: File[]) => {
-    const chosen = files[0]
-    if (!chosen) return
-    setKeyError(null)
-    try {
-      setLoadingKey(true)
-      const pem = await chosen.text()
-      await importPublicKeyPem(pem)
-      const { fingerprint } = await getFingerprintFromPem(pem)
-      setRecipient({ source: 'file', name: chosen.name, pem, fingerprint })
-      resetOutcome()
-    } catch (err) {
-      setRecipient(null)
-      setKeyError(describeError(err).message)
-    } finally {
-      setLoadingKey(false)
-    }
   }
 
   const handleEncrypt = useCallback(async () => {
@@ -129,18 +75,24 @@ export function EncryptPage() {
         fileName: file.name,
         fileType: file.type,
         recipientPublicKey: publicKey,
+        hideMetadata,
       })
-      setResult({ pkg, fileName: packageFileName(file.name) })
+      setResult({
+        pkg,
+        fileName: hideMetadata ? HIDDEN_PACKAGE_FILE_NAME : packageFileName(file.name),
+      })
+      recordEvent('encrypt', { bytes: bytes.byteLength })
       setPhase('success')
     } catch (err) {
       setError(describeError(err))
       setPhase('error')
     }
-  }, [file, recipient, getPublicCryptoKey])
+  }, [file, recipient, hideMetadata, getPublicCryptoKey])
 
   const handleReset = () => {
     setFile(null)
     setRecipient(null)
+    setHideMetadata(false)
     setResult(null)
     setError(null)
     setProgress(undefined)
@@ -212,80 +164,25 @@ export function EncryptPage() {
               Use the recipient’s verified public key. A public key is safe to share.
             </p>
 
-            {vaultKeys.length > 0 ? (
-              <div className="sb-field">
-                <label className="sb-field__label" htmlFor="recipient-key">
-                  Recipient&apos;s public key
-                </label>
-                <select
-                  id="recipient-key"
-                  className="sb-select"
-                  value={recipient?.source === 'vault' ? recipient.id : ''}
-                  disabled={busy}
-                  onChange={(event) => void handleVaultKeyChange(event.target.value)}
-                >
-                  <option value="">Select a saved public key…</option>
-                  {vaultKeys.map((key) => (
-                    <option key={key.id} value={key.id}>
-                      {key.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ) : (
-              <p className="sb-muted sb-text-sm">
-                You have no saved public keys yet.{' '}
-                <Link to="/keys">Create or import a key</Link>, or import a public key file below.
-              </p>
-            )}
+            <RecipientKeyPicker
+              recipient={recipient}
+              disabled={busy}
+              onChange={(next) => {
+                setRecipient(next)
+                resetOutcome()
+              }}
+            />
 
-            <div className="sb-actions" style={{ marginTop: 'var(--space-4)' }}>
-              <Button
-                variant="secondary"
-                onClick={() => importInputRef.current?.click()}
-                disabled={busy}
-                icon={<KeyRound size={16} aria-hidden="true" />}
-              >
-                Import public key file
-              </Button>
-              <input
-                ref={importInputRef}
-                type="file"
-                accept=".pem,.pub,.key,.txt,application/x-pem-file"
-                className="sb-visually-hidden"
-                tabIndex={-1}
-                onChange={(event) => {
-                  const files = event.target.files ? Array.from(event.target.files) : []
-                  void handleImportRecipient(files)
-                  event.target.value = ''
+            <div style={{ marginTop: 'var(--space-4)' }}>
+              <MetadataPrivacyToggle
+                checked={hideMetadata}
+                onChange={(checked) => {
+                  setHideMetadata(checked)
+                  resetOutcome()
                 }}
+                disabled={busy}
               />
             </div>
-
-            {keyError ? (
-              <div style={{ marginTop: 'var(--space-4)' }}>
-                <StatusMessage variant="danger" title="Key problem">
-                  {keyError}
-                </StatusMessage>
-              </div>
-            ) : null}
-
-            {loadingKey ? (
-              <p className="sb-muted sb-text-sm" style={{ marginTop: 'var(--space-4)' }}>
-                Reading key…
-              </p>
-            ) : null}
-
-            {recipient ? (
-              <div style={{ marginTop: 'var(--space-4)' }}>
-                <StatusMessage variant="info" title="Recipient key ready">
-                  <p className="sb-text-sm">
-                    Files will be encrypted for <strong>{recipient.name}</strong>. Review this
-                    key&apos;s fingerprint in Key management when you need to verify it.
-                  </p>
-                </StatusMessage>
-              </div>
-            ) : null}
           </Card>
 
           <Card>
@@ -327,10 +224,19 @@ export function EncryptPage() {
                   <dl className="sb-details">
                     <dt>Package file</dt>
                     <dd className="sb-mono">{result.fileName}</dd>
-                    <dt>Original name</dt>
-                    <dd>{result.pkg.fileName}</dd>
-                    <dt>Original size</dt>
-                    <dd>{formatBytes(result.pkg.fileSize)}</dd>
+                    {result.pkg.metadata === 'hidden' ? (
+                      <>
+                        <dt>Metadata</dt>
+                        <dd>Hidden inside the package</dd>
+                      </>
+                    ) : (
+                      <>
+                        <dt>Original name</dt>
+                        <dd>{result.pkg.fileName}</dd>
+                        <dt>Original size</dt>
+                        <dd>{formatBytes(result.pkg.fileSize)}</dd>
+                      </>
+                    )}
                     <dt>Encryption</dt>
                     <dd>
                       {result.pkg.cipher} · key wrapped with {result.pkg.keyWrap}
@@ -406,8 +312,9 @@ export function EncryptPage() {
                   <CheckCircle2 size={18} />
                 </span>
                 <p className="sb-text-sm sb-muted">
-                  The package keeps the file name, size, and recipient fingerprint as visible
-                  metadata.
+                  By default the package keeps the file name, size, and recipient fingerprint
+                  as visible metadata. Turn on Hide metadata to encrypt those details inside the
+                  package.
                 </p>
               </li>
             </ul>

@@ -12,6 +12,7 @@ import { getFingerprintFromPem } from '../lib/crypto'
 import type { StoredKey } from '../lib/storage/keyVault'
 import { baseName, downloadBlob } from '../lib/files'
 import { describeError, type ErrorCopy } from '../lib/errorCopy'
+import { recordEvent } from '../lib/analytics'
 
 function downloadPem(pem: string, fileName: string) {
   downloadBlob(new Blob([pem], { type: 'application/x-pem-file' }), fileName)
@@ -98,6 +99,7 @@ export function KeysPage() {
     try {
       setGenerating(true)
       const created = await generateKeyPair(newKeyName)
+      recordEvent('key-create')
       setNewKeyName('')
       setGenerateOpen(false)
       if (created.privateKeyPem) {
@@ -132,6 +134,7 @@ export function KeysPage() {
     try {
       const pem = await file.text()
       const created = await importKey({ name: keyNameFromFile(file.name), publicKeyPem: pem })
+      recordEvent('key-import')
       setNotice({
         variant: 'success',
         title: 'Public key imported',
@@ -160,6 +163,7 @@ export function KeysPage() {
         privateKeyPem: pendingPrivate.pem,
         passphrase: importPassphrase || undefined,
       })
+      recordEvent('key-import')
       setPendingPrivate(null)
       setImportPassphrase('')
       setNotice({
@@ -208,6 +212,7 @@ export function KeysPage() {
     if (!deleteTarget) return
     try {
       await removeKey(deleteTarget.id)
+      recordEvent('key-delete')
       setNotice({
         variant: 'success',
         title: 'Key removed',

@@ -3,6 +3,8 @@
  * Centralised so every component pulls from one source of truth.
  */
 :root {
+  color-scheme: light;
+
   /* 3.1 Color palette */
   --color-page: #f8fafc;
   --color-surface: #ffffff;
@@ -14,6 +16,10 @@
   --color-primary: #2563eb;
   --color-primary-hover: #1d4ed8;
   --color-primary-soft: #dbeafe;
+  --color-primary-fill: #2563eb;
+  --color-primary-fill-hover: #1d4ed8;
+  --color-on-primary: #ffffff;
+  --color-app-bar: rgba(255, 255, 255, 0.92);
   --color-success: #166534;
   --color-success-soft: #f0fdf4;
   --color-warning: #92400e;
@@ -73,6 +79,34 @@
   /* 8. Interaction */
   --transition-fast: 140ms ease;
   --transition-base: 160ms ease;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --color-page: #0b1120;
+  --color-surface: #111827;
+  --color-surface-muted: #1e293b;
+  --color-text: #f1f5f9;
+  --color-text-muted: #94a3b8;
+  --color-border: #1e293b;
+  --color-border-strong: #334155;
+  --color-primary: #60a5fa;
+  --color-primary-hover: #93c5fd;
+  --color-primary-soft: #172554;
+  --color-primary-fill: #2563eb;
+  --color-primary-fill-hover: #1d4ed8;
+  --color-on-primary: #ffffff;
+  --color-app-bar: rgba(17, 24, 39, 0.92);
+  --color-success: #4ade80;
+  --color-success-soft: #052e16;
+  --color-warning: #fbbf24;
+  --color-warning-soft: #451a03;
+  --color-danger: #f87171;
+  --color-danger-soft: #450a0a;
+
+  --shadow-popover: 0 6px 24px rgba(0, 0, 0, 0.5);
+  --shadow-dialog: 0 16px 48px rgba(0, 0, 0, 0.6);
 }
 
 @media (prefers-reduced-motion: reduce) {

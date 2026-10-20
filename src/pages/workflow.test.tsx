@@ -75,7 +75,45 @@ describe('Encrypt workflow', () => {
     const privateKey = await importPrivateKeyPem(key.privateKeyPem)
     const decrypted = await decryptPackage(pkg, privateKey)
     expect(new TextDecoder().decode(decrypted.bytes)).toBe('hello from the test suite')
+    if (pkg.metadata !== 'visible') throw new Error('expected visible metadata')
     expect(pkg.fileName).toBe('greeting.txt')
+  })
+
+  it('hides file metadata and uses a generic package name', async () => {
+    const user = userEvent.setup()
+    const key = await createTestKey('Alice')
+    const vault = new MemoryKeyVault([key.stored])
+
+    const { container } = renderApp('/encrypt', vault)
+
+    const keySelect = await screen.findByLabelText("Recipient's public key")
+    await user.selectOptions(keySelect, key.stored.id)
+    await user.upload(
+      dropzoneInput(container),
+      new File(['hidden payload'], 'private-notes.txt', { type: 'text/plain' }),
+    )
+
+    await user.click(screen.getByRole('checkbox', { name: /hide metadata/i }))
+    await user.click(screen.getByRole('button', { name: 'Encrypt file' }))
+
+    expect(await screen.findByText(/Encryption completed/i)).toBeInTheDocument()
+    expect(screen.getByText('sealbox-package.sealbox')).toBeInTheDocument()
+    expect(screen.getByText('Hidden inside the package')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Download package' }))
+    await waitFor(() => expect(createdBlobs.length).toBeGreaterThan(0))
+
+    const pkg = parsePackage(await createdBlobs[createdBlobs.length - 1].text())
+    expect(pkg.metadata).toBe('hidden')
+    expect(serializePackage(pkg)).not.toContain('private-notes.txt')
+    expect(serializePackage(pkg)).not.toContain('text/plain')
+
+    const privateKey = await importPrivateKeyPem(key.privateKeyPem)
+    const decrypted = await decryptPackage(pkg, privateKey)
+    expect(new TextDecoder().decode(decrypted.bytes)).toBe('hidden payload')
+    expect(decrypted.fileName).toBe('private-notes.txt')
+    expect(decrypted.fileType).toBe('text/plain')
+    expect(decrypted.metadata).toBe('hidden')
   })
 
   it('keeps the encrypt action disabled until a file and key are chosen', async () => {
@@ -132,6 +170,36 @@ describe('Decrypt workflow', () => {
     await user.click(screen.getByRole('button', { name: 'Download file' }))
     await waitFor(() => expect(createdBlobs.length).toBeGreaterThan(0))
     expect(await createdBlobs[createdBlobs.length - 1].text()).toBe('classified payload')
+  })
+
+  it('reveals hidden metadata only after decryption', async () => {
+    const user = userEvent.setup()
+    const key = await createTestKey('Alice')
+    const pkg = await createTestPackage(key.publicKeyPem, 'private.txt', 'hidden payload', {
+      hideMetadata: true,
+    })
+    const vault = new MemoryKeyVault([key.stored])
+
+    const { container } = renderApp('/decrypt', vault)
+    await user.upload(
+      dropzoneInput(container),
+      new File([serializePackage(pkg)], 'sealbox-package.sealbox', {
+        type: 'application/json',
+      }),
+    )
+
+    expect(await screen.findByText(/metadata encrypted/i)).toBeInTheDocument()
+    expect(screen.getByText(/hides its original file details/i)).toBeInTheDocument()
+    expect(screen.queryByText('private.txt')).not.toBeInTheDocument()
+
+    await user.selectOptions(screen.getByLabelText('Your private key'), key.stored.id)
+    await user.click(screen.getByRole('button', { name: 'Decrypt file' }))
+
+    expect(await screen.findByText(/Decryption completed/i)).toBeInTheDocument()
+    expect(screen.getByText('private.txt')).toBeInTheDocument()
+    expect(
+      screen.getByText(/File details were encrypted inside the package/i),
+    ).toBeInTheDocument()
   })
 
   it('shows a clear error when the wrong private key is used', async () => {

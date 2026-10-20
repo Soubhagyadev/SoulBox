@@ -9,6 +9,20 @@
       content="SealBox encrypts files in your browser for a recipient's public key and lets them decrypt with their private key."
     />
     <title>SealBox — Encrypted File Transfer</title>
+    <script>
+      ;(function () {
+        try {
+          var preferences = JSON.parse(localStorage.getItem('sealbox.preferences.v1') || '{}')
+          var theme = preferences && preferences.theme
+          if (theme !== 'light' && theme !== 'dark') {
+            theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+          }
+          document.documentElement.dataset.theme = theme
+        } catch (error) {
+          document.documentElement.dataset.theme = 'light'
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

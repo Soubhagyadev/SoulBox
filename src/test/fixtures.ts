@@ -42,6 +42,7 @@ export async function createTestPackage(
   publicKeyPem: string,
   fileName: string,
   content: string,
+  options: { hideMetadata?: boolean } = {},
 ): Promise<SealBoxPackage> {
   const publicKey = await importPublicKeyPem(publicKeyPem)
   return encryptFile({
@@ -49,5 +50,6 @@ export async function createTestPackage(
     fileName,
     fileType: 'text/plain',
     recipientPublicKey: publicKey,
+    hideMetadata: options.hideMetadata,
   })
 }

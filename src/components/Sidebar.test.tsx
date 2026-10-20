@@ -24,8 +24,11 @@ describe('Sidebar', () => {
     expect(screen.getAllByRole('link', { name: 'SealBox home' })).toHaveLength(2)
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     expect(nav).toHaveTextContent('Encrypt file')
+    expect(nav).toHaveTextContent('Batch encryption')
     expect(nav).toHaveTextContent('Decrypt file')
     expect(nav).toHaveTextContent('Key management')
+    expect(nav).toHaveTextContent('Analytics')
+    expect(nav).toHaveTextContent('Settings')
   })
 
   it('opens and closes the drawer from the toggle', async () => {
