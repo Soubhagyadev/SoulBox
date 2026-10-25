@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111111">
+  <title>How SealBox works — SealBox</title>
+  <meta name="description" content="Learn how SealBox encrypts, decrypts, and protects files for private sharing.">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <style>
+    @font-face { font-family:"Kunst Grotesk"; src:url("/fonts/Kunst%20Grotesk%20Regular.woff2") format("woff2"); font-weight:400; font-display:swap; }
+    @font-face { font-family:"Kunst Grotesk"; src:url("/fonts/Kunst%20Grotesk%20Medium.woff2") format("woff2"); font-weight:500 700; font-display:swap; }
+    @font-face { font-family:"Apercu Mono Pro"; src:url("/fonts/Apercu%20Mono%20Pro%20Regular.woff2") format("woff2"); font-display:swap; }
+    :root { color-scheme: dark; --sb-bg:#111; --sb-surface:#171717; --sb-line:#303030; --sb-text:#f5f5f5; --sb-muted:#aaa; --sb-blue:#3478ff; }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:smooth; scroll-padding-top:5rem; }
+    body { margin:0; min-width:320px; background:var(--sb-bg); color:var(--sb-text); font-family:"STK Bureau Sans", "Kunst Grotesk", Inter, Arial, sans-serif; }
+    a { color:inherit; text-decoration:none; }
+    .topbar { position:sticky; top:0; z-index:10; height:68px; border-bottom:1px solid var(--sb-line); background:rgb(17 17 17 / 94%); backdrop-filter:blur(14px); }
+    .topbar-inner { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); align-items:center; gap:12px; width:min(1480px,100%); height:100%; margin:auto; padding:0 20px; }
+    .brand { display:inline-flex; align-items:center; justify-self:start; gap:11px; font-size:16px; font-weight:650; letter-spacing:.02em; }
+    .brand img { width:27px; height:27px; }
+    .nav { display:flex; align-items:center; justify-self:center; gap:clamp(16px,3vw,38px); color:#ddd; font-size:14px; }
+    .nav a { transition:color .18s ease; }
+    .nav a:hover,.nav a:focus-visible { color:#78a8ff; }
+    .nav-cta { justify-self:end; padding:10px 17px; border:1px solid var(--sb-blue); border-radius:999px; background:var(--sb-blue); color:#fff; font-size:13px; font-weight:600; transition:background .18s ease,border-color .18s ease; }
+    .nav-cta:hover { border-color:#5c91ff; background:#5c91ff; }
+    .intro { position:relative; isolation:isolate; overflow:hidden; padding:clamp(90px,14vw,170px) 24px clamp(75px,10vw,120px); text-align:center; border-bottom:1px solid var(--sb-line); }
+    .intro:before { position:absolute; z-index:-1; inset:0; content:""; background-image:radial-gradient(#454545 0.7px,transparent .7px); background-size:16px 16px; opacity:.32; mask-image:linear-gradient(to bottom,black,transparent 82%); }
+    .eyebrow { color:#78a8ff; font:500 12px/1.5 "Apercu Mono Pro",monospace; letter-spacing:.13em; text-transform:uppercase; }
+    .intro h1 { max-width:900px; margin:18px auto 20px; font:400 clamp(42px,7vw,82px)/1.03 "Kunst Grotesk",Inter,Arial,sans-serif; letter-spacing:-.045em; }
+    .intro p { max-width:680px; margin:0 auto; color:#b8b8b8; font-size:clamp(16px,2vw,19px); line-height:1.65; }
+    .sections { width:min(1200px,calc(100% - 48px)); margin:auto; }
+    .info-section { padding:clamp(64px,9vw,112px) 0; border-bottom:1px solid var(--sb-line); scroll-margin-top:84px; }
+    .section-heading { display:grid; grid-template-columns:minmax(0,.8fr) minmax(280px,1fr); align-items:end; gap:36px; margin-bottom:38px; }
+    .section-heading h2 { margin:9px 0 0; font:400 clamp(32px,5vw,54px)/1.08 "Kunst Grotesk",Inter,Arial,sans-serif; letter-spacing:-.035em; }
+    .section-heading p { max-width:600px; justify-self:end; margin:0; color:var(--sb-muted); font-size:16px; line-height:1.7; }
+    .cards { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); border:1px solid var(--sb-line); }
+    .card { min-height:204px; padding:26px; border-right:1px solid var(--sb-line); }
+    .card:last-child { border-right:0; }
+    .number { display:grid; place-items:center; width:32px; height:32px; margin-bottom:28px; border:1px solid #426ec0; border-radius:50%; color:#82aaff; font:12px "Apercu Mono Pro",monospace; }
+    .card h3 { margin:0 0 9px; font:500 19px/1.35 "Kunst Grotesk",Inter,Arial,sans-serif; }
+    .card p { margin:0; color:var(--sb-muted); font-size:14px; line-height:1.7; }
+    a:focus-visible { outline:2px solid #78a8ff; outline-offset:4px; border-radius:3px; }
+    @media(max-width:700px) { .topbar { height:auto; min-height:64px; } .topbar-inner { grid-template-columns:1fr auto; height:auto; gap:14px 10px; padding:12px 18px; } .nav { grid-column:1 / -1; grid-row:2; width:100%; justify-content:space-between; gap:8px; font-size:12px; } .nav-cta { grid-column:2; grid-row:1; padding:8px 12px; font-size:12px; } .sections { width:calc(100% - 36px); } .section-heading { grid-template-columns:1fr; gap:15px; } .section-heading p { justify-self:start; } .cards { grid-template-columns:1fr; } .card { min-height:0; border-right:0; border-bottom:1px solid var(--sb-line); } .card:last-child { border-bottom:0; } }
+    @media(prefers-reduced-motion:reduce) { html { scroll-behavior:auto; } *,*:before,*:after { transition:none!important; } }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="/" aria-label="SealBox home"><img src="/favicon.svg" alt=""><span>SealBox</span></a>
+      <nav class="nav" aria-label="Page sections">
+        <a href="#encrypt">Encrypt</a><a href="#decrypt">Decrypt</a><a href="#how-it-works">How it works</a><a href="#security">Security</a>
+      </nav>
+      <a class="nav-cta" href="/login?next=%2Fencrypt">Open the app</a>
+    </div>
+  </header>
+  <main>
+    <section class="intro" aria-labelledby="page-title">
+      <span class="eyebrow">Private file handoff</span>
+      <h1 id="page-title">Your files. Sealed for the right people.</h1>
+      <p>SealBox encrypts files in your browser and packages them for sharing. Explore how encryption, decryption, and recipient keys work together.</p>
+    </section>
+    <div class="sections">
+      <section class="info-section" id="encrypt" aria-labelledby="encrypt-title">
+        <div class="section-heading"><div><span class="eyebrow">01 / Encrypt</span><h2 id="encrypt-title">Seal a file for its recipient.</h2></div><p>Choose a file and a recipient’s public key. SealBox encrypts it locally and creates a portable .sealbox package you can share anywhere.</p></div>
+        <div class="cards"><article class="card"><span class="number">01</span><h3>Choose your file</h3><p>Select one file or prepare a batch. Your plaintext stays in this browser while encryption runs.</p></article><article class="card"><span class="number">02</span><h3>Select a public key</h3><p>Use the recipient’s verified public key so only the intended recipient can decrypt the package.</p></article><article class="card"><span class="number">03</span><h3>Download and share</h3><p>Save the finished package to your device, then share it through a service you already trust.</p></article></div>
+      </section>
+      <section class="info-section" id="decrypt" aria-labelledby="decrypt-title">
+        <div class="section-heading"><div><span class="eyebrow">02 / Decrypt</span><h2 id="decrypt-title">Open it with your private key.</h2></div><p>Decrypt a .sealbox package on your device. Only the matching private key can unwrap the file key and recover the original file.</p></div>
+        <div class="cards"><article class="card"><span class="number">01</span><h3>Load the package</h3><p>Choose the .sealbox file you received. SealBox reads it locally in your browser.</p></article><article class="card"><span class="number">02</span><h3>Use the matching key</h3><p>Select or import the private key that belongs to the public key used to encrypt the file.</p></article><article class="card"><span class="number">03</span><h3>Verify and recover</h3><p>Authenticated decryption checks the package before making the original file available to save.</p></article></div>
+      </section>
+      <section class="info-section" id="how-it-works" aria-labelledby="how-it-works-title">
+        <div class="section-heading"><div><span class="eyebrow">03 / How it works</span><h2 id="how-it-works-title">A private handoff, step by step.</h2></div><p>SealBox combines fast file encryption with recipient-specific key protection, all inside your browser.</p></div>
+        <div class="cards"><article class="card"><span class="number">01</span><h3>A one-time file key</h3><p>A fresh random AES-256-GCM key encrypts the file contents and detects changes to the ciphertext.</p></article><article class="card"><span class="number">02</span><h3>Recipient key protection</h3><p>RSA-OAEP with SHA-256 wraps the one-time key using the recipient’s public key.</p></article><article class="card"><span class="number">03</span><h3>A portable package</h3><p>The encrypted file and key information are bundled into a .sealbox file for sharing and later decryption.</p></article></div>
+      </section>
+      <section class="info-section" id="security" aria-labelledby="security-title">
+        <div class="section-heading"><div><span class="eyebrow">04 / Security</span><h2 id="security-title">Protection built into the workflow.</h2></div><p>Encryption happens locally, and the package is designed so the intended recipient can recover its contents with the matching private key.</p></div>
+        <div class="cards"><article class="card"><span class="number">✓</span><h3>Authenticated encryption</h3><p>AES-256-GCM protects file contents and reports if encrypted data has been altered.</p></article><article class="card"><span class="number">✓</span><h3>Private keys stay yours</h3><p>Your private key is used in your browser to decrypt. Share public keys; keep private keys secret.</p></article><article class="card"><span class="number">✓</span><h3>No plaintext upload</h3><p>SealBox performs file encryption and decryption in your browser rather than uploading plaintext to a server.</p></article></div>
+      </section>
+    </div>
+  </main>
+</body>
+</html>
