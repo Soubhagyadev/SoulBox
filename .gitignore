@@ -12,6 +12,7 @@ dist
 dist-ssr
 coverage
 *.local
+.data/
 
 # Local-only project docs
 EFT_Design_Spec.md

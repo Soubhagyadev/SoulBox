@@ -707,8 +707,13 @@
   width: 32px;
   height: 32px;
   border-radius: var(--radius-md);
-  background-color: var(--color-primary-fill);
-  color: var(--color-on-primary);
+  background-color: transparent;
+}
+
+.sb-brand__mark img {
+  display: block;
+  max-width: none;
+  object-fit: contain;
 }
 
 .sb-sidebar__nav {
