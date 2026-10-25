@@ -1,0 +1,14 @@
+{
+  "rewrites": [
+    { "source": "/learn-more", "destination": "/learn-more.html" },
+    { "source": "/app", "destination": "/app.html" },
+    { "source": "/login", "destination": "/app.html" },
+    { "source": "/signup", "destination": "/app.html" },
+    { "source": "/encrypt", "destination": "/app.html" },
+    { "source": "/batch", "destination": "/app.html" },
+    { "source": "/decrypt", "destination": "/app.html" },
+    { "source": "/keys", "destination": "/app.html" },
+    { "source": "/analytics", "destination": "/app.html" },
+    { "source": "/settings", "destination": "/app.html" }
+  ]
+}

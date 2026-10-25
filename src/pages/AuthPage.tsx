@@ -154,7 +154,7 @@ export function AuthPage({ mode }: AuthPageProps) {
             </p>
             <div className="sb-auth__local-callout">
               <ShieldCheck size={18} />
-              <p><strong>Stored locally, by design</strong><br />Account records and password hashes use SQLite on this computer. Encryption keys stay in your browser and are never sent to the account service.</p>
+              <p><strong>Protected by design</strong><br />Passwords are stored as salted hashes. Encryption keys stay in your browser and are never sent to the account service.</p>
             </div>
             <Link className="sb-auth__continue" to={nextPath}>Continue without an account <ArrowRight size={16} /></Link>
           </div>

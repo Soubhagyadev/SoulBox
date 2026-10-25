@@ -10,11 +10,27 @@ starts the Vite site and a local SQLite authentication service together. The Sea
 at `/`; its app links open sign-in and sign-up, then continue to the requested app screen. No
 Python HTTP server is needed.
 
-Account records, scrypt password hashes, and hashed session tokens are stored in the ignored
-`.data/sealbox.sqlite` database on this computer. Passwords are never stored in plain text. The
-encryption key vault remains SQLite in the browser's IndexedDB so private keys and file contents
-are not sent to the account service. Accounts are local to this development machine; there is no
-cloud sync or password recovery service.
+In local development, account records, scrypt password hashes, and hashed session tokens are
+stored in the ignored `.data/sealbox.sqlite` database on this computer. Passwords are never stored
+in plain text. Encryption keys remain in the browser's IndexedDB and are not sent to the account
+service.
+
+## Deploy to Vercel
+
+The Vercel deployment uses API functions in `api/auth/` and a hosted SQLite-compatible Turso
+database. The local `server/auth-server.mjs` and `.data/sealbox.sqlite` are only used by
+`npm run dev`; a Vercel Function cannot use that local file as persistent shared storage.
+
+1. Create a Turso database and connect it to the Vercel project with the Turso integration, or
+   add `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` to the Vercel project's Production environment.
+2. Import this repository into Vercel and deploy with the default Vite build (`npm run build`).
+   The build publishes the hero page at `/`, the product explainer at `/learn-more`, and keeps the
+   React app available at `/app` and its workflow routes.
+3. The auth tables are initialized automatically the first time an auth endpoint is called.
+
+The local development database is not copied to Turso; production accounts start in the hosted
+database. Encryption keys still stay in each user's browser and are not synchronized to the
+account database.
 
 ## What it does
 
@@ -80,4 +96,6 @@ src/
   pages/          Landing, Encrypt, Batch encryption, Decrypt, Key management, Analytics, Settings, NotFound
   styles/         design tokens and component/page styles
   test/           test setup and fixtures
+api/auth/         Vercel session, signup, login, and logout functions (Turso)
+server/           local SQLite auth server and shared Vercel/Turso auth handler
 ```
