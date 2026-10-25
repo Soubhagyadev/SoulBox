@@ -3,6 +3,19 @@
 A browser-based tool for encrypting files for a specific recipient and decrypting packages with
 the matching private key. Built to the design specification in `EFT_Design_Spec.md`.
 
+## Run locally
+
+Use Node.js 22.13 or newer. Install dependencies with `npm install`, then run `npm run dev`. This
+starts the Vite site and a local SQLite authentication service together. The SealBox hero page is
+at `/`; its app links open sign-in and sign-up, then continue to the requested app screen. No
+Python HTTP server is needed.
+
+Account records, scrypt password hashes, and hashed session tokens are stored in the ignored
+`.data/sealbox.sqlite` database on this computer. Passwords are never stored in plain text. The
+encryption key vault remains SQLite in the browser's IndexedDB so private keys and file contents
+are not sent to the account service. Accounts are local to this development machine; there is no
+cloud sync or password recovery service.
+
 ## What it does
 
 - **Encrypt** a file for a recipient's RSA public key. A random AES-256-GCM key encrypts the
@@ -20,7 +33,8 @@ the matching private key. Built to the design specification in `EFT_Design_Spec.
 - **Settings** for the color theme and for wiping the browser's key vault.
 
 All cryptography runs in the browser with the Web Crypto API. Plaintext files and private keys
-are never uploaded — there is no backend.
+are never uploaded. The local development backend handles account sign-in only; it does not
+process or receive files or encryption keys.
 
 ## Security model (accurate, not aspirational)
 

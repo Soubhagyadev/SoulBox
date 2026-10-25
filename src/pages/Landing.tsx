@@ -49,10 +49,10 @@ export function Landing() {
               device.
             </p>
             <div className="sb-hero__actions">
-              <Link to="/encrypt" className="sb-btn sb-btn--primary sb-btn--lg">
+              <Link to="/login?next=%2Fencrypt" className="sb-btn sb-btn--primary sb-btn--lg">
                 Encrypt a file
               </Link>
-              <Link to="/decrypt" className="sb-btn sb-btn--secondary sb-btn--lg">
+              <Link to="/login?next=%2Fdecrypt" className="sb-btn sb-btn--secondary sb-btn--lg">
                 Decrypt a file
               </Link>
             </div>
@@ -176,10 +176,10 @@ export function Landing() {
                 </p>
               </div>
               <div className="sb-actions">
-                <Link to="/keys" className="sb-btn sb-btn--secondary sb-btn--lg">
+                <Link to="/login?next=%2Fkeys" className="sb-btn sb-btn--secondary sb-btn--lg">
                   Manage keys
                 </Link>
-                <Link to="/encrypt" className="sb-btn sb-btn--primary sb-btn--lg">
+                <Link to="/login?next=%2Fencrypt" className="sb-btn sb-btn--primary sb-btn--lg">
                   <FileLock2 size={18} aria-hidden="true" />
                   Encrypt a file
                 </Link>

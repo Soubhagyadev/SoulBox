@@ -1,12 +1,10 @@
 import { useCallback, useRef, useState } from 'react'
 import {
-  CheckCircle2,
   Download,
   FileText,
   FolderOpen,
   RefreshCw,
   ShieldCheck,
-  Trash2,
   X,
 } from 'lucide-react'
 import { useKeyVault } from '../context/keyVault'
@@ -234,7 +232,7 @@ export function BatchEncryptPage() {
         </p>
       </header>
 
-      <div className="sb-workflow__grid">
+      <div className="sb-workflow__grid sb-workflow__grid--single">
         <div className="sb-stack">
           <Card>
             <h2 className="sb-section-title" style={{ marginBottom: 'var(--space-4)' }}>
@@ -475,51 +473,7 @@ export function BatchEncryptPage() {
           </Card>
         </div>
 
-        <aside className="sb-workflow__aside">
-          <Card compact muted>
-            <h2 className="sb-card-title" style={{ fontSize: 'var(--text-base)' }}>
-              How batch encryption works
-            </h2>
-            <ul className="sb-fact-list" role="list" style={{ marginTop: 'var(--space-3)' }}>
-              <li className="sb-fact">
-                <span className="sb-fact__icon" aria-hidden="true">
-                  <CheckCircle2 size={18} />
-                </span>
-                <p className="sb-text-sm sb-muted">
-                  Files are packed into a ZIP bundle in this browser, then encrypted with one random
-                  AES-256-GCM key.
-                </p>
-              </li>
-              <li className="sb-fact">
-                <span className="sb-fact__icon" aria-hidden="true">
-                  <CheckCircle2 size={18} />
-                </span>
-                <p className="sb-text-sm sb-muted">
-                  The AES key is wrapped with the recipient’s RSA public key. Nothing is uploaded.
-                </p>
-              </li>
-              <li className="sb-fact">
-                <span className="sb-fact__icon" aria-hidden="true">
-                  <CheckCircle2 size={18} />
-                </span>
-                <p className="sb-text-sm sb-muted">
-                  By default the bundle name, size, and recipient fingerprint are visible
-                  metadata; file names stay encrypted. Hide metadata also encrypts those outer
-                  details.
-                </p>
-              </li>
-              <li className="sb-fact">
-                <span className="sb-fact__icon" aria-hidden="true">
-                  <Trash2 size={18} />
-                </span>
-                <p className="sb-text-sm sb-muted">
-                  The whole bundle shares one {formatBytes(MAX_FILE_SIZE)} limit because encryption
-                  happens in memory.
-                </p>
-              </li>
-            </ul>
-          </Card>
-        </aside>
+
       </div>
     </div>
   )

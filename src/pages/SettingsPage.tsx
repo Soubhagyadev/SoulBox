@@ -1,5 +1,6 @@
 import { useState, useSyncExternalStore } from 'react'
-import { Monitor, Moon, Sun, Trash2 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { LogOut, Monitor, Moon, Sun, Trash2 } from 'lucide-react'
 import { useKeyVault } from '../context/keyVault'
 import { Button } from '../components/Button'
 import { Dialog } from '../components/Dialog'
@@ -29,10 +30,12 @@ interface Notice extends ErrorCopy {
 }
 
 export function SettingsPage() {
+  const navigate = useNavigate()
   const { keys, status, removeKey } = useKeyVault()
   const theme = useSyncExternalStore(subscribeToTheme, getThemePreference)
   const [clearOpen, setClearOpen] = useState(false)
   const [clearing, setClearing] = useState(false)
+  const [signingOut, setSigningOut] = useState(false)
   const [notice, setNotice] = useState<Notice | null>(null)
 
   const keyCount = keys.length
@@ -58,6 +61,27 @@ export function SettingsPage() {
       setNotice({ variant: 'danger', ...describeError(error) })
     } finally {
       setClearing(false)
+    }
+  }
+
+  const handleSignOut = async () => {
+    setNotice(null)
+    setSigningOut(true)
+    try {
+      const response = await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'same-origin',
+      })
+      if (!response.ok) throw new Error('The session could not be closed. Please try again.')
+      navigate('/login', { replace: true })
+    } catch (error) {
+      setNotice({
+        variant: 'danger',
+        title: 'Could not sign out',
+        message: error instanceof Error ? error.message : 'The authentication service is unavailable.',
+      })
+    } finally {
+      setSigningOut(false)
     }
   }
 
@@ -151,6 +175,31 @@ export function SettingsPage() {
               }}
             >
               Delete all keys
+            </Button>
+          </div>
+        </section>
+
+        <section className="sb-settings" aria-labelledby="settings-account">
+          <h2 className="sb-section-title" id="settings-account">
+            Account session
+          </h2>
+          <p className="sb-muted sb-text-sm" style={{ marginTop: 'var(--space-1)' }}>
+            Sign out of this SealBox account on this device. Your browser key vault stays on this device.
+          </p>
+          <div className="sb-settings__danger">
+            <div>
+              <h3 className="sb-card-title">Sign out</h3>
+              <p className="sb-muted sb-text-sm" style={{ marginTop: 'var(--space-1)' }}>
+                You’ll return to the SealBox sign-in page. You can sign in again at any time.
+              </p>
+            </div>
+            <Button
+              variant="secondary"
+              icon={<LogOut size={16} aria-hidden="true" />}
+              loading={signingOut}
+              onClick={() => void handleSignOut()}
+            >
+              Sign out
             </Button>
           </div>
         </section>

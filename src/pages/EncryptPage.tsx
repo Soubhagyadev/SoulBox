@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { CheckCircle2, Download, FileText, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react'
+import { Download, FileText, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react'
 import { useKeyVault } from '../context/keyVault'
 import { Button } from '../components/Button'
 import { Card } from '../components/Card'
@@ -109,7 +109,7 @@ export function EncryptPage() {
         </p>
       </header>
 
-      <div className="sb-workflow__grid">
+      <div className="sb-workflow__grid sb-workflow__grid--single">
         <div className="sb-stack">
           <Card>
             <h2 className="sb-section-title" style={{ marginBottom: 'var(--space-4)' }}>
@@ -284,42 +284,7 @@ export function EncryptPage() {
           </Card>
         </div>
 
-        <aside className="sb-workflow__aside">
-          <Card compact muted>
-            <h2 className="sb-card-title" style={{ fontSize: 'var(--text-base)' }}>
-              What happens to your file
-            </h2>
-            <ul className="sb-fact-list" role="list" style={{ marginTop: 'var(--space-3)' }}>
-              <li className="sb-fact">
-                <span className="sb-fact__icon" aria-hidden="true">
-                  <CheckCircle2 size={18} />
-                </span>
-                <p className="sb-text-sm sb-muted">
-                  A random AES-256-GCM key encrypts the file. That key is wrapped with the
-                  recipient’s RSA public key.
-                </p>
-              </li>
-              <li className="sb-fact">
-                <span className="sb-fact__icon" aria-hidden="true">
-                  <CheckCircle2 size={18} />
-                </span>
-                <p className="sb-text-sm sb-muted">
-                  The plaintext file is never uploaded. Encryption happens in this browser tab.
-                </p>
-              </li>
-              <li className="sb-fact">
-                <span className="sb-fact__icon" aria-hidden="true">
-                  <CheckCircle2 size={18} />
-                </span>
-                <p className="sb-text-sm sb-muted">
-                  By default the package keeps the file name, size, and recipient fingerprint
-                  as visible metadata. Turn on Hide metadata to encrypt those details inside the
-                  package.
-                </p>
-              </li>
-            </ul>
-          </Card>
-        </aside>
+
       </div>
     </div>
   )

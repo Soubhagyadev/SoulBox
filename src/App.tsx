@@ -8,12 +8,16 @@ import { KeysPage } from './pages/KeysPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { AnalyticsPage } from './pages/AnalyticsPage'
 import { NotFound } from './pages/NotFound'
+import { AuthPage } from './pages/AuthPage'
 
 export function App() {
   return (
     <Routes>
+      <Route path="/login" element={<AuthPage mode="login" />} />
+      <Route path="/signup" element={<AuthPage mode="signup" />} />
       <Route element={<Layout />}>
         <Route path="/" element={<Landing />} />
+        <Route path="/app" element={<Landing />} />
         <Route path="/encrypt" element={<EncryptPage />} />
         <Route path="/batch" element={<BatchEncryptPage />} />
         <Route path="/decrypt" element={<DecryptPage />} />
